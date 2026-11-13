@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dose Reminder</title>
+<style>
+:root{--p:#24566B;--a:#176B9A;--bg:#EDF3F5;--card:#FBFDFD;--t:#172B33;--t2:#4D636D;--bd:#C8D8DE;--soft:#D8EAF2;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--p:#8CC4DE;--a:#2A8CBF;--bg:#0F1A1F;--card:#17262D;--t:#E6F0F3;--t2:#9FB5BE;--bd:#2A3F48;--soft:#1E3641;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:480px;margin:0 auto;min-height:100vh;padding:0 24px 96px}
+button,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+header{display:flex;align-items:center;height:72px;gap:8px}
+header div{flex:1;min-width:0}
+h1{font-size:32px;line-height:1.2;letter-spacing:-.6px;margin:0;font-weight:700}
+.sub{color:var(--t2);font-size:13px;font-weight:500}
+.ic{width:48px;height:48px;font-size:24px;color:var(--p);display:grid;place-items:center}
+h2{font-size:20px;margin:24px 2px 12px;font-weight:600}
+.card{background:var(--card);border-radius:20px;overflow:hidden}
+.row{display:flex;align-items:center;gap:4px;padding:12px 8px;min-height:76px}
+.row+.row,.fld+.fld,.trow+.trow,.add{border-top:1px solid var(--bd)}
+.grow{flex:1;min-width:0}
+.grow b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow small,.muted{color:var(--t2);font-size:13px;display:block;margin-top:4px}
+.done{color:var(--t2);text-decoration:line-through}
+.chk{width:48px;height:48px;display:grid;place-items:center}
+.chk::before{content:"";width:24px;height:24px;border:2px solid var(--bd);border-radius:8px;display:block}
+.chk.on::before{content:"✓";background:var(--a);border-color:var(--a);color:#fff;font-size:15px;font-weight:700;line-height:20px}
+.tm{min-height:48px;min-width:64px;text-align:right;color:var(--t2);font-size:13px;font-weight:500;padding-right:8px}
+.next{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;margin-top:8px;border-radius:20px;background:var(--soft);color:var(--p);font-weight:600;font-size:15px}
+.pad{padding:20px;margin:0}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;width:100%;border-radius:12px;background:var(--a);color:#fff;font-weight:600;margin-top:12px}
+.btn.alt{background:var(--card);color:var(--p)}
+.empty{text-align:center;padding:96px 16px 0}
+.empty p{color:var(--t2);font-size:15px;max-width:290px;margin:8px auto 0}
+.empty h2{margin:0}
+.mark{width:72px;height:72px;border-radius:20px;background:var(--soft);display:grid;place-items:center;font-size:32px;margin:0 auto 24px}
+.link{color:var(--p);font-weight:600;font-size:13px;padding:8px}
+.fld{padding:12px 16px}
+.fld label{display:block;color:var(--t2);font-size:13px;font-weight:500}
+input{width:100%;background:none;border:0;padding:4px 0 0;font-weight:600;min-height:28px}
+input::placeholder{color:var(--t2);font-weight:400}
+input:focus{outline:0}
+.trow{display:flex;align-items:center;gap:8px;padding:12px 8px 12px 16px}
+.trow .grow input:last-child{font-weight:400;font-size:13px;color:var(--t2)}
+.trow input[type=time]{width:auto;color:var(--p)}
+.add{padding:0 16px;display:flex;align-items:center;gap:8px;min-height:48px;width:100%;color:var(--p);font-weight:600;font-size:15px}
+.voice{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:0 16px;background:var(--soft);border-radius:20px;color:var(--p);font-weight:600;font-size:15px;text-align:left}
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+nav[hidden]{display:none}
+nav button{flex:1;padding:8px 0;font-size:11px;font-weight:600;color:var(--t2);display:grid;justify-items:center;gap:2px}
+nav button span{font-size:20px;line-height:1}
+nav button.on{color:var(--p)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="tabs"></nav>
+<script>
+const $app = document.getElementById('app'), $tabs = document.getElementById('tabs');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const sample = (n, d, t, l) => ({ name: n, details: d, times: [{ time: t, label: l, note: '' }] });
+let meds = store.get('dr-meds', null) || [
+  sample('Vitamin D3', '1 softgel · 1000 IU', '08:00', 'Morning'),
+  sample('Metformin', '1 tablet · 500 mg', '12:30', 'Afternoon'),
+  sample('Lisinopril', '1 tablet · 10 mg', '18:00', 'Evening'),
+  sample('Vitamin C', '1 tablet · 500 mg', '07:45', 'Morning')
+].map((m, i) => ({ id: i + 1, ...m }));
+let taken = store.get('dr-taken', {});
+let view = 'today', draft = null;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const day = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const fmt = t => { const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + ':' + pad(m) + (h < 12 ? ' AM' : ' PM'); };
+const dateLabel = () => new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date());
+const doses = () => meds.flatMap(m => m.times.filter(t => t.time).map((t, i) => ({ key: m.id + '-' + i, m, time: t.time })))
+  .sort((a, b) => a.time.localeCompare(b.time));
+const isTaken = d => !!taken[day() + ':' + d.key];
+const speak = text => {
+  if (!('speechSynthesis' in window)) return alert('Spoken reminders are not supported in this browser.');
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+};
+const save = () => { store.set('dr-meds', meds); store.set('dr-taken', taken); };
+
+const head = (title, sub, action) => `<header><div><h1>${title}</h1>${sub ? `<span class="sub">${sub}</span>` : ''}</div>${action || ''}</header>`;
+const row = (d, done) => `<div class="row"><button class="chk ${done ? 'on' : ''}" data-toggle="${d.key}" aria-label="Mark ${esc(d.m.name)} ${done ? 'not taken' : 'taken'}"></button>
+<div class="grow"><b class="${done ? 'done' : ''}">${esc(d.m.name)}</b><small>${esc(d.m.details || '')}</small></div>
+<button class="tm" data-speak="${d.key}" aria-label="Hear ${esc(d.m.name)} reminder">${fmt(d.time)}</button></div>`;
+const list = (ds, done, none) => `<div class="card">${ds.length ? ds.map(d => row(d, done)).join('') : `<p class="muted pad">${none}</p>`}</div>`;
+const takenHead = n => `<h2 class="muted" style="font-size:13px;margin-top:24px">✓ Taken · ${n} ${n === 1 ? 'dose' : 'doses'}</h2>`;
+
+const views = {
+  today() {
+    const ds = doses(), todo = ds.filter(d => !isTaken(d)), done = ds.filter(isTaken);
+    const now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+    const next = todo.find(d => { const [h, m] = d.time.split(':').map(Number); return h * 60 + m >= cur; }) || todo[0];
+    const top = head('Today', dateLabel(), '<button class="ic" data-go="meds" aria-label="View medicines">🔔</button>');
+    if (!ds.length) return top + `<div class="empty"><div class="mark">💊</div><h2>Your schedule starts here</h2><p>Add your first medicine and its scheduled times. Upcoming doses and spoken reminders will appear here.</p><button class="btn" data-go="form">Add medicine</button></div>`;
+    return top + (next ? `<div class="next">⏱ Next dose · ${fmt(next.time)}</div>` : '') + '<h2>Scheduled</h2>' +
+      list(todo, false, 'All scheduled doses are taken.') + (done.length ? takenHead(done.length) + list(done, true) : '');
+  },
+  meds() {
+    const top = head('Medicines', '', '<button class="ic" data-go="form" aria-label="Add medicine">＋</button>');
+    if (!meds.length) return top + `<div class="empty"><div class="mark">💊</div><h2>Keep your medicines together</h2><p>Add a medicine and its scheduled times to see your reminders here.</p><button class="btn" data-go="form">Add medicine</button><button class="btn alt" data-voice>🎤 Speak medicine details</button></div>`;
+    return top + '<h2 style="margin-top:8px">Your medicines</h2><div class="card">' + meds.map(m => {
+      const t = (m.times[0] || {}).time;
+      return `<div class="row"><button class="grow" style="text-align:left" data-edit="${m.id}" aria-label="Edit ${esc(m.name)}"><b>${esc(m.name)}</b><small>${esc(m.details || 'No details')}</small><small>Every day · ${t ? fmt(t) : 'No time'}</small></button><button class="link" data-del="${m.id}" aria-label="Delete ${esc(m.name)}">Delete</button></div>`;
+    }).join('') + '</div><p class="muted">Tap a medicine to edit it.</p>';
+  },
+  history() {
+    const ds = doses(), done = ds.filter(isTaken), todo = ds.filter(d => !isTaken(d));
+    const top = head('History', dateLabel());
+    if (!ds.length) return top + `<div class="empty"><div class="mark">🕘</div><h2>Your doses, in one place</h2><p>Recorded doses will appear here once you start tracking medicines.</p></div>`;
+    return top + '<p class="muted" style="font-size:15px">Today’s doses</p>' + takenHead(done.length) +
+      list(done, true, 'No doses marked taken yet.') + '<h2>Scheduled</h2>' + list(todo, false, 'All scheduled doses are taken.');
+  },
+  settings() {
+    return head('Settings') + `<h2 style="margin-top:8px">Announcements</h2><div class="card"><button class="row" style="width:100%;text-align:left" data-test><span class="ic">🔊</span><span class="grow"><b>Test spoken reminder</b><small>Hear a sample announcement</small></span><span class="muted">›</span></button></div><p class="muted">Open Today and tap a scheduled time to hear its announcement.</p>`;
+  },
+  form() {
+    const f = (k, label, ph) => `<div class="fld"><label for="f-${k}">${label}</label><input id="f-${k}" data-f="${k}" value="${esc(draft[k])}" placeholder="${ph}" autocomplete="off"></div>`;
+    return `<header><button class="ic" data-go="meds" aria-label="Close" style="margin-left:-12px">✕</button><div><h1 style="font-size:28px">${draft.id ? 'Edit medicine' : 'Add medicine'}</h1></div></header>
+<button class="voice" data-voice>🎤 <span class="grow">Say medicine name</span><small>Voice</small></button>
+<h2>Medicine details</h2><div class="card">${f('name', 'Medicine name', 'Medicine name')}${f('strength', 'Strength', 'e.g. 500 mg tablet')}${f('dose', 'Dose', 'e.g. 1 tablet')}</div>
+<h2>Scheduled times</h2><div class="card">${draft.times.map((t, i) => `<div class="trow"><div class="grow"><input data-t="${i}" data-k="label" value="${esc(t.label)}" placeholder="Morning / Evening" aria-label="Time label"><input data-t="${i}" data-k="note" value="${esc(t.note)}" placeholder="With breakfast" aria-label="Note"></div><input type="time" data-t="${i}" data-k="time" value="${esc(t.time)}" aria-label="Time">${draft.times.length > 1 ? `<button class="ic" data-rt="${i}" aria-label="Remove time">✕</button>` : ''}</div>`).join('')}<button class="add" data-at>＋ Add a time</button></div>
+<p class="muted">Dose Reminder will announce the medicine name, dose, and scheduled time.</p><button class="btn" data-save>Save medicine</button>`;
+  }
+};
+
+function render() {
+  $app.innerHTML = views[view]();
+  const tabs = [['today', '🏠', 'Today'], ['meds', '💊', 'Medicines'], ['history', '🕘', 'History'], ['settings', '⚙️', 'Settings']];
+  const cur = view === 'form' ? 'meds' : view;
+  $tabs.hidden = view === 'form';
+  $tabs.innerHTML = tabs.map(t => `<button class="${t[0] === cur ? 'on' : ''}" data-go="${t[0]}"><span>${t[1]}</span>${t[2]}</button>`).join('');
+}
+const go = v => { view = v; if (v === 'form') draft = draft || blank(); else draft = null; render(); window.scrollTo(0, 0); };
+const blank = () => ({ id: null, name: '', strength: '', dose: '', times: [{ label: '', note: '', time: '' }] });
+
+function listen() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!R) return alert('Voice input is not supported in this browser. Try Chrome.');
+  const r = new R(); r.lang = 'en-US';
+  r.onresult = e => { draft = draft || blank(); draft.name = e.results[0][0].transcript.trim(); view = 'form'; render(); };
+  r.onerror = () => alert('Could not hear anything. Check microphone permission and try again.');
+  r.start();
+}
+
+function saveDraft() {
+  if (!draft.name.trim()) return alert('Enter a medicine name.');
+  const times = draft.times.filter(t => t.time);
+  if (!times.length) return alert('Add at least one scheduled time.');
+  const med = { id: draft.id || Date.now(), name: draft.name.trim(), details: [draft.dose.trim(), draft.strength.trim()].filter(Boolean).join(' · '), times };
+  meds = draft.id ? meds.map(m => m.id === med.id ? med : m) : meds.concat([med]);
+  save(); draft = null; go('meds');
+}
+
+$app.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.f) draft[el.dataset.f] = el.value;
+  else if (el.dataset.t) draft.times[+el.dataset.t][el.dataset.k] = el.value;
+});
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset, find = k => doses().find(x => x.key === k);
+  if ('go' in d) { if (d.go === 'form') draft = blank(); go(d.go); }
+  else if ('toggle' in d) { const k = day() + ':' + d.toggle; taken[k] ? delete taken[k] : taken[k] = true; save(); render(); }
+  else if ('speak' in d) { const x = find(d.speak); speak('Reminder. Take ' + x.m.name + '. ' + (x.m.details || '') + '. Scheduled for ' + fmt(x.time) + '.'); }
+  else if ('edit' in d) {
+    const m = meds.find(x => x.id == d.edit), p = (m.details || '').split(' · ');
+    draft = { id: m.id, name: m.name, dose: p[0] || '', strength: p.slice(1).join(' · '), times: m.times.map(t => ({ label: t.label || '', note: t.note || '', time: t.time })) };
+    go('form');
+  }
+  else if ('del' in d) { if (confirm('Delete this medicine?')) { meds = meds.filter(m => m.id != d.del); save(); render(); } }
+  else if ('at' in d) { draft.times.push({ label: '', note: '', time: '' }); render(); }
+  else if ('rt' in d) { draft.times.splice(+d.rt, 1); render(); }
+  else if ('save' in d) saveDraft();
+  else if ('voice' in d) listen();
+  else if ('test' in d) speak('Dose Reminder will announce your medicine name, details and scheduled time.');
+});
+
+render();
+</script>
+</body>
+</html>
